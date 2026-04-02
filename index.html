@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NetWatch</title>
+  <link rel="stylesheet" href="/static/css/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  <div class="sidebar">
+    <div class="logo">NetWatch</div>
+    <nav>
+      <a href="#" class="nav-link active">Dashboard</a>
+      <a href="#" class="nav-link">Hosts</a>
+      <a href="#" class="nav-link">Scan</a>
+    </nav>
+    <div class="sidebar-footer">
+      <span id="last-updated">--</span>
+    </div>
+  </div>
+
+  <main class="main">
+
+    <header class="topbar">
+      <h1>Network Monitor</h1>
+      <div class="scan-bar">
+        <input type="text" id="subnet-input" placeholder="192.168.1.0/24" />
+        <button id="scan-btn" onclick="runScan()">Scan Network</button>
+      </div>
+    </header>
+
+    <section class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">Hosts Up</div>
+        <div class="stat-value" id="hosts-up">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Hosts Down</div>
+        <div class="stat-value down" id="hosts-down">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Avg Latency</div>
+        <div class="stat-value" id="avg-latency">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Hosts</div>
+        <div class="stat-value" id="total-hosts">--</div>
+      </div>
+    </section>
+
+    <section class="content-grid">
+
+      <div class="panel hosts-panel">
+        <div class="panel-header">
+          <span>Live Hosts</span>
+          <span class="pulse-dot"></span>
+        </div>
+        <table class="host-table">
+          <thead>
+            <tr>
+              <th>IP Address</th>
+              <th>Hostname</th>
+              <th>Status</th>
+              <th>Latency</th>
+              <th>Open Ports</th>
+            </tr>
+          </thead>
+          <tbody id="host-table-body">
+            <tr><td colspan="5" class="empty-state">Run a scan to discover hosts</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel chart-panel">
+        <div class="panel-header">
+          <span id="chart-title">Latency — select a host</span>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="latency-chart"></canvas>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <script src="/static/js/dashboard.js"></script>
+</body>
+</html>
