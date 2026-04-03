@@ -15,7 +15,7 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(start_monitor())
     yield
 
-app = FastAPI(title="NetWatch", lifespan=lifespan)
+app = FastAPI(title="UpDog", lifespan=lifespan)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
