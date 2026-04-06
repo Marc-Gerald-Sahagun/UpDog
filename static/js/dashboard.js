@@ -2,6 +2,7 @@
 let latencyChart = null;
 let selectedHost = null;
 let statusInterval = null;
+let previousStatuses = {};  // ip -> "up" | "down"
 
 // ── Chart setup ──────────────────────────────────────────────
 function initChart() {
@@ -68,6 +69,9 @@ async function runScan() {
     const data = await res.json();
     renderHosts(data.hosts);
     updateStats(data.hosts);
+    // Seed previous statuses so we don't false-alert on first poll
+    previousStatuses = {};
+    data.hosts.forEach(h => { previousStatuses[h.ip] = h.status; });
     startStatusPolling();
   } catch (err) {
     console.error('Scan failed:', err);
@@ -83,7 +87,7 @@ function renderHosts(hosts) {
   const tbody = document.getElementById('host-table-body');
 
   if (!hosts || hosts.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No hosts found on that subnet</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No hosts found on that subnet</td></tr>';
     return;
   }
 
@@ -93,9 +97,16 @@ function renderHosts(hosts) {
       <td>${host.hostname !== host.ip ? host.hostname : '<span style="color:var(--muted)">—</span>'}</td>
       <td><span class="status-badge status-${host.status}">${host.status}</span></td>
       <td>${host.latency_ms != null ? host.latency_ms + ' ms' : '<span style="color:var(--muted)">—</span>'}</td>
+      <td>${renderUptime(host.uptime_pct)}</td>
       <td>${renderPorts(host.open_ports)}</td>
     </tr>
   `).join('');
+}
+
+function renderUptime(pct) {
+  if (pct == null) return '<span style="color:var(--muted)">—</span>';
+  const color = pct >= 95 ? 'var(--green)' : pct >= 80 ? 'var(--yellow)' : 'var(--red)';
+  return `<span style="color:${color};font-family:var(--font-mono)">${pct}%</span>`;
 }
 
 function renderPorts(ports) {
@@ -156,6 +167,7 @@ function startStatusPolling() {
       const res = await fetch('/api/status');
       const data = await res.json();
       if (data.hosts && data.hosts.length > 0) {
+        checkForDownAlerts(data.hosts);
         updateStats(data.hosts);
         updateTableStatus(data.hosts);
         if (selectedHost) await loadLatencyChart(selectedHost);
@@ -174,6 +186,7 @@ function updateTableStatus(hosts) {
     if (!row) return;
     const badge = row.querySelector('.status-badge');
     const latencyCell = row.cells[3];
+    const uptimeCell = row.cells[4];
     if (badge) {
       badge.className = `status-badge status-${host.status}`;
       badge.textContent = host.status;
@@ -181,7 +194,45 @@ function updateTableStatus(hosts) {
     if (latencyCell) {
       latencyCell.textContent = host.latency_ms != null ? host.latency_ms + ' ms' : '—';
     }
+    if (uptimeCell) {
+      uptimeCell.innerHTML = renderUptime(host.uptime_pct);
+    }
+    previousStatuses[host.ip] = host.status;
   });
+}
+
+// ── Down alerts ───────────────────────────────────────────────
+function checkForDownAlerts(hosts) {
+  hosts.forEach(host => {
+    const prev = previousStatuses[host.ip];
+    if (prev === 'up' && host.status === 'down') {
+      showToast(`⚠ ${host.ip} went down`, 'error');
+    } else if (prev === 'down' && host.status === 'up') {
+      showToast(`✓ ${host.ip} is back up`, 'success');
+    }
+  });
+}
+
+function showToast(message, type = 'error') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+
+  // Animate in
+  requestAnimationFrame(() => toast.classList.add('toast-visible'));
+
+  // Auto-dismiss after 5s
+  setTimeout(() => {
+    toast.classList.remove('toast-visible');
+    setTimeout(() => toast.remove(), 300);
+  }, 5000);
+}
+
+// ── CSV Export ────────────────────────────────────────────────
+function exportCSV() {
+  window.location.href = '/api/export/csv';
 }
 
 // ── Overlay ───────────────────────────────────────────────────

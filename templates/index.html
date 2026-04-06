@@ -9,6 +9,8 @@
 </head>
 <body>
 
+  <div id="toast-container" class="toast-container"></div>
+
   <div class="sidebar">
     <div class="logo">UpDog</div>
     <nav>
@@ -28,6 +30,7 @@
       <div class="scan-bar">
         <input type="text" id="subnet-input" placeholder="192.168.1.0/24" />
         <button id="scan-btn" onclick="runScan()">Scan Network</button>
+        <button id="export-btn" onclick="exportCSV()">Export CSV</button>
       </div>
     </header>
 
@@ -64,11 +67,12 @@
               <th>Hostname</th>
               <th>Status</th>
               <th>Latency</th>
+              <th>Uptime (24h)</th>
               <th>Open Ports</th>
             </tr>
           </thead>
           <tbody id="host-table-body">
-            <tr><td colspan="5" class="empty-state">Run a scan to discover hosts</td></tr>
+            <tr><td colspan="6" class="empty-state">Run a scan to discover hosts</td></tr>
           </tbody>
         </table>
       </div>

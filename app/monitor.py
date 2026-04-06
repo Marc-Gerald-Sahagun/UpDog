@@ -1,62 +1,84 @@
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.requests import Request
+from fastapi.responses import StreamingResponse
+from contextlib import asynccontextmanager
 import asyncio
+import csv
+import io
 import time
-from typing import Dict, List
-from app.scanner import ping_host, get_latency
-from app.database import log_ping
 
-# In-memory host state — updated by the monitor loop
-_host_status: Dict[str, dict] = {}
+from app.scanner import scan_subnet
+from app.monitor import start_monitor, get_host_status, set_monitored_hosts
+from app.database import init_db, get_recent_latency, get_uptime_percent
 
-# Hosts being actively monitored
-_monitored_hosts: List[str] = []
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    asyncio.create_task(start_monitor())
+    yield
 
-MONITOR_INTERVAL = 30  # seconds between ping sweeps
+app = FastAPI(title="UpDog", lifespan=lifespan)
 
-
-def add_host(ip: str):
-    """Add a host to the monitoring list."""
-    if ip not in _monitored_hosts:
-        _monitored_hosts.append(ip)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
 
 
-def remove_host(ip: str):
-    """Remove a host from monitoring."""
-    if ip in _monitored_hosts:
-        _monitored_hosts.remove(ip)
-    _host_status.pop(ip, None)
+@app.get("/")
+async def dashboard(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
 
 
-def get_host_status() -> List[dict]:
-    """Return current status of all monitored hosts."""
-    return list(_host_status.values())
+@app.get("/api/scan")
+async def scan(subnet: str = "192.168.1.0/24"):
+    hosts = await scan_subnet(subnet)
+    # Kick off monitoring for discovered hosts
+    set_monitored_hosts([h["ip"] for h in hosts])
+    # Attach uptime % (will be 0 on first scan, that's fine)
+    for host in hosts:
+        host["uptime_pct"] = get_uptime_percent(host["ip"], hours=24)
+    return {"hosts": hosts}
 
 
-def set_monitored_hosts(hosts: List[str]):
-    """Replace the monitored host list (called after a scan)."""
-    global _monitored_hosts
-    _monitored_hosts = hosts
+@app.get("/api/status")
+async def status():
+    return {"hosts": get_host_status()}
 
 
-async def check_host(ip: str):
-    """Ping a host, update its status, and log the result."""
-    latency = await get_latency(ip)
-    is_up = latency is not None
-    timestamp = int(time.time())
-
-    _host_status[ip] = {
-        "ip": ip,
-        "status": "up" if is_up else "down",
-        "latency_ms": latency,
-        "last_checked": timestamp
-    }
-
-    log_ping(ip, is_up, latency, timestamp)
+@app.get("/api/latency/{host}")
+async def latency(host: str):
+    data = get_recent_latency(host)
+    return {"host": host, "latency": data}
 
 
-async def start_monitor():
-    """Background task — continuously monitors all tracked hosts."""
-    while True:
-        if _monitored_hosts:
-            tasks = [check_host(ip) for ip in _monitored_hosts]
-            await asyncio.gather(*tasks)
-        await asyncio.sleep(MONITOR_INTERVAL)
+@app.get("/api/export/csv")
+async def export_csv():
+    """Export current host status + uptime as a CSV download."""
+    hosts = get_host_status()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["IP Address", "Status", "Latency (ms)", "Uptime % (24h)", "Last Checked"])
+
+    for host in hosts:
+        last_checked = (
+            time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(host["last_checked"]))
+            if host.get("last_checked")
+            else ""
+        )
+        writer.writerow([
+            host.get("ip", ""),
+            host.get("status", ""),
+            host.get("latency_ms", ""),
+            host.get("uptime_pct", ""),
+            last_checked,
+        ])
+
+    output.seek(0)
+    filename = f"updog-export-{time.strftime('%Y%m%d-%H%M%S')}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
