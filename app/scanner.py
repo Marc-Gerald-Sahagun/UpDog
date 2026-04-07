@@ -18,7 +18,7 @@ async def ping_host(ip: str) -> bool:
     """Ping a single host and return True if alive."""
     try:
         proc = await asyncio.create_subprocess_exec(
-            "ping", "-c", "1", "-W", "1", ip,
+            "ping", "-c", "1", "-W", "2000", ip,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL
         )
@@ -32,7 +32,7 @@ async def get_latency(ip: str) -> float | None:
     """Return ping latency in ms, or None if unreachable."""
     try:
         proc = await asyncio.create_subprocess_exec(
-            "ping", "-c", "1", "-W", "1", ip,
+            "ping", "-c", "1", "-W", "2000", ip,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL
         )
