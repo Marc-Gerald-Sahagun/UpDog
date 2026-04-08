@@ -14,37 +14,57 @@ PORT_SERVICES = {
     445: "SMB", 3306: "MySQL", 3389: "RDP", 8080: "HTTP-Alt", 8443: "HTTPS-Alt"
 }
 
+IS_WINDOWS = sys.platform == "win32"
+
+
+def _ping_args(ip: str):
+    if IS_WINDOWS:
+        return ["ping", "-n", "1", "-w", "2000", ip]
+    else:
+        return ["ping", "-c", "1", "-W", "2000", ip]
+
+
+def _parse_latency(output: str):
+    try:
+        if IS_WINDOWS:
+            if "time<" in output:
+                return 0.5  # less than 1ms, return 0.5 as approximation
+            if "time=" in output:
+                time_str = output.split("time=")[1].split("ms")[0].strip()
+                return float(time_str)
+        else:
+            if "time=" in output:
+                time_str = output.split("time=")[1].split(" ")[0]
+                return float(time_str)
+    except Exception:
+        return None
+    return None
+
+def _ping_sync(ip: str) -> tuple:
+    """Synchronous ping — runs in a thread."""
+    try:
+        result = subprocess.run(
+            _ping_args(ip),
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            latency = _parse_latency(result.stdout)
+            return True, latency
+        return False, None
+    except Exception:
+        return False, None
+
 
 async def ping_host(ip: str) -> bool:
-    """Ping a single host and return True if alive."""
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            "ping", "-c", "1", "-W", "2000", ip,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL
-        )
-        await asyncio.wait_for(proc.wait(), timeout=2)
-        return proc.returncode == 0
-    except Exception:
-        return False
+    is_up, _ = await asyncio.to_thread(_ping_sync, ip)
+    return is_up
 
 
 async def get_latency(ip: str) -> float | None:
-    """Return ping latency in ms, or None if unreachable."""
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            "ping", "-c", "1", "-W", "2000", ip,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL
-        )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=3)
-        output = stdout.decode()
-        if "time=" in output:
-            time_str = output.split("time=")[1].split(" ")[0]
-            return float(time_str)
-    except Exception:
-        pass
-    return None
+    _, latency = await asyncio.to_thread(_ping_sync, ip)
+    return latency
 
 
 async def scan_port(ip: str, port: int) -> bool:
@@ -110,8 +130,13 @@ async def scan_subnet(subnet: str) -> List[Dict]:
     except ValueError:
         return []
 
-    # Limit to /24 max to avoid runaway scans
     hosts = list(network.hosts())[:254]
-    tasks = [scan_host(str(ip)) for ip in hosts]
-    results = await asyncio.gather(*tasks)
+    results = []
+    batch_size = 20
+
+    for i in range(0, len(hosts), batch_size):
+        batch = hosts[i:i + batch_size]
+        batch_results = await asyncio.gather(*[scan_host(str(ip)) for ip in batch])
+        results.extend(batch_results)
+
     return [r for r in results if r is not None]

@@ -8,10 +8,14 @@ import asyncio
 import csv
 import io
 import time
+import sys
 
 from app.scanner import scan_subnet
 from app.monitor import start_monitor, get_host_status, set_monitored_hosts
 from app.database import init_db, get_recent_latency, get_uptime_percent
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
