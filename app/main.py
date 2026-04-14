@@ -2,12 +2,20 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.requests import Request
+from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 import asyncio
+import csv
+import io
+import time
+import sys
 
 from app.scanner import scan_subnet
 from app.monitor import start_monitor, get_host_status, set_monitored_hosts
-from app.database import init_db, get_recent_latency
+from app.database import init_db, get_recent_latency, get_uptime_percent
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -29,7 +37,11 @@ async def dashboard(request: Request):
 @app.get("/api/scan")
 async def scan(subnet: str = "192.168.1.0/24"):
     hosts = await scan_subnet(subnet)
+    # Kick off monitoring for discovered hosts
     set_monitored_hosts([h["ip"] for h in hosts])
+    # Attach uptime % (will be 0 on first scan, that's fine)
+    for host in hosts:
+        host["uptime_pct"] = get_uptime_percent(host["ip"], hours=24)
     return {"hosts": hosts}
 
 
@@ -42,3 +54,35 @@ async def status():
 async def latency(host: str):
     data = get_recent_latency(host)
     return {"host": host, "latency": data}
+
+
+@app.get("/api/export/csv")
+async def export_csv():
+    """Export current host status + uptime as a CSV download."""
+    hosts = get_host_status()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["IP Address", "Status", "Latency (ms)", "Uptime % (24h)", "Last Checked"])
+
+    for host in hosts:
+        last_checked = (
+            time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(host["last_checked"]))
+            if host.get("last_checked")
+            else ""
+        )
+        writer.writerow([
+            host.get("ip", ""),
+            host.get("status", ""),
+            host.get("latency_ms", ""),
+            host.get("uptime_pct", ""),
+            last_checked,
+        ])
+
+    output.seek(0)
+    filename = f"updog-export-{time.strftime('%Y%m%d-%H%M%S')}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
