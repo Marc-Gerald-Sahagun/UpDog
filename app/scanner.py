@@ -2,6 +2,7 @@ import asyncio
 import socket
 import subprocess
 import ipaddress
+import sys
 from typing import List, Dict
 
 
@@ -14,11 +15,21 @@ PORT_SERVICES = {
 }
 
 
+def _ping_args(ip: str) -> list:
+    """Return the correct ping command for the current OS."""
+    if sys.platform == "win32":
+        # -n count, -w timeout in ms
+        return ["ping", "-n", "1", "-w", "1000", ip]
+    else:
+        # macOS: -c count, -W timeout in ms
+        return ["ping", "-c", "1", "-W", "1000", ip]
+
+
 async def ping_host(ip: str) -> bool:
     """Ping a single host and return True if alive."""
     try:
         proc = await asyncio.create_subprocess_exec(
-            "ping", "-c", "1", "-W", "1", ip,
+            *_ping_args(ip),
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL
         )
@@ -32,15 +43,17 @@ async def get_latency(ip: str) -> float | None:
     """Return ping latency in ms, or None if unreachable."""
     try:
         proc = await asyncio.create_subprocess_exec(
-            "ping", "-c", "1", "-W", "1", ip,
+            *_ping_args(ip),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL
         )
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=3)
         output = stdout.decode()
         if "time=" in output:
-            time_str = output.split("time=")[1].split(" ")[0]
-            return float(time_str)
+            # Windows: "time=1ms" or "time<1ms"
+            # macOS: "time=1.234 ms"
+            raw = output.split("time=")[1].split()[0].rstrip("ms").strip("<")
+            return float(raw)
     except Exception:
         pass
     return None
