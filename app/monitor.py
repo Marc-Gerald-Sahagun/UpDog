@@ -1,7 +1,7 @@
 import asyncio
 import time
 from typing import Dict, List
-from app.scanner import ping_host, get_latency
+from app.scanner import _ping_sync
 from app.database import log_ping, get_uptime_percent
 
 _host_status: Dict[str, dict] = {}
@@ -31,10 +31,11 @@ def set_monitored_hosts(hosts: List[str]):
 
 
 async def check_host(ip: str):
-    previous_status = _host_status.get(ip, {}).get("status")
-    latency = await get_latency(ip)
-    is_up = latency is not None
+    is_up, latency = await asyncio.to_thread(_ping_sync, ip)
     timestamp = int(time.time())
+
+    log_ping(ip, is_up, latency, timestamp)
+
     uptime_pct = get_uptime_percent(ip, hours=24)
 
     _host_status[ip] = {
@@ -43,10 +44,7 @@ async def check_host(ip: str):
         "latency_ms": latency,
         "last_checked": timestamp,
         "uptime_pct": uptime_pct,
-        "just_went_down": previous_status == "up" and not is_up,
     }
-
-    log_ping(ip, is_up, latency, timestamp)
 
 
 async def start_monitor():

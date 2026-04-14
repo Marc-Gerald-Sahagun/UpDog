@@ -104,12 +104,11 @@ def resolve_hostname(ip: str) -> str:
 
 async def scan_host(ip: str) -> Dict | None:
     """Scan a single host — ping, latency, ports, hostname."""
-    alive = await ping_host(ip)
-    if not alive:
+    is_up, latency = await asyncio.to_thread(_ping_sync, ip)
+    if not is_up:
         return None
 
-    latency, open_ports, hostname = await asyncio.gather(
-        get_latency(ip),
+    open_ports, hostname = await asyncio.gather(
         scan_ports(ip),
         asyncio.to_thread(resolve_hostname, ip)
     )
