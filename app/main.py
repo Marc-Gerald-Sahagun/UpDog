@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 import asyncio
 
 from app.scanner import scan_subnet
-from app.monitor import start_monitor, get_host_status
+from app.monitor import start_monitor, get_host_status, set_monitored_hosts
 from app.database import init_db, get_recent_latency
 
 @asynccontextmanager
@@ -29,6 +29,7 @@ async def dashboard(request: Request):
 @app.get("/api/scan")
 async def scan(subnet: str = "192.168.1.0/24"):
     hosts = await scan_subnet(subnet)
+    set_monitored_hosts([h["ip"] for h in hosts])
     return {"hosts": hosts}
 
 
