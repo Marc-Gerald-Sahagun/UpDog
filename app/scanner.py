@@ -19,9 +19,9 @@ IS_WINDOWS = sys.platform == "win32"
 
 def _ping_args(ip: str):
     if IS_WINDOWS:
-        return ["ping", "-n", "1", "-w", "2000", ip]
+        return ["ping", "-n", "1", "-w", "500", ip]
     else:
-        return ["ping", "-c", "1", "-W", "2000", ip]
+        return ["ping", "-c", "1", "-W", "500", ip]
 
 
 def _parse_latency(output: str):
@@ -51,7 +51,8 @@ def _ping_sync(ip: str) -> tuple:
         )
         if result.returncode == 0:
             latency = _parse_latency(result.stdout)
-            return True, latency
+            if latency is not None:
+                return True, latency
         return False, None
     except Exception:
         return False, None
@@ -131,7 +132,7 @@ async def scan_subnet(subnet: str) -> List[Dict]:
 
     hosts = list(network.hosts())[:254]
     results = []
-    batch_size = 20
+    batch_size = 50
 
     for i in range(0, len(hosts), batch_size):
         batch = hosts[i:i + batch_size]
