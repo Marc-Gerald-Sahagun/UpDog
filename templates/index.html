@@ -14,9 +14,9 @@
   <div class="sidebar">
     <div class="logo">UpDog</div>
     <nav>
-      <a href="#" class="nav-link active" data-view="dashboard" onclick="switchView('dashboard'); return false;">Dashboard</a>
-      <a href="#" class="nav-link" data-view="hosts" onclick="switchView('hosts'); return false;">Hosts</a>
-      <a href="#" class="nav-link" data-view="scan" onclick="switchView('scan'); return false;">Scan</a>
+      <a href="#" class="nav-link active">Dashboard</a>
+      <a href="#" class="nav-link">Hosts</a>
+      <a href="#" class="nav-link">Scan</a>
     </nav>
     <div class="sidebar-footer">
       <span id="last-updated">--</span>
@@ -25,187 +25,71 @@
 
   <main class="main">
 
-    <!-- ── Dashboard view ── -->
-    <div id="view-dashboard" class="view">
+    <header class="topbar">
+      <h1>Network Monitor</h1>
+      <div class="scan-bar">
+        <input type="text" id="subnet-input" placeholder="192.168.1.0/24" />
+        <button id="scan-btn" onclick="runScan()">Scan Network</button>
+        <button id="export-btn" onclick="exportCSV()">Export CSV</button>
+      </div>
+    </header>
 
-      <header class="topbar">
-        <h1>Network Monitor</h1>
-        <div class="scan-bar">
-          <input type="text" id="subnet-input" placeholder="192.168.1.0/24" />
-          <button id="scan-btn" onclick="runScan()">Scan Network</button>
-          <button id="export-btn" onclick="exportCSV()">Export CSV</button>
+    <section class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">Hosts Up</div>
+        <div class="stat-value" id="hosts-up">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Hosts Down</div>
+        <div class="stat-value down" id="hosts-down">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Avg Latency</div>
+        <div class="stat-value" id="avg-latency">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Hosts</div>
+        <div class="stat-value" id="total-hosts">--</div>
+      </div>
+    </section>
+
+    <section class="content-grid">
+
+      <div class="panel hosts-panel">
+        <div class="panel-header">
+          <span>Live Hosts</span>
+          <span class="pulse-dot"></span>
         </div>
-      </header>
+        <table class="host-table">
+          <thead>
+            <tr>
+              <th>IP Address</th>
+              <th>Hostname</th>
+              <th>Status</th>
+              <th>Latency</th>
+              <th>Uptime (24h)</th>
+              <th>Open Ports</th>
+            </tr>
+          </thead>
+          <tbody id="host-table-body">
+            <tr><td colspan="6" class="empty-state">Run a scan to discover hosts</td></tr>
+          </tbody>
+        </table>
+      </div>
 
-      <section class="stats-row">
-        <div class="stat-card">
-          <div class="stat-label">Hosts Up</div>
-          <div class="stat-value" id="hosts-up">--</div>
+      <div class="panel chart-panel">
+        <div class="panel-header">
+          <span id="chart-title">Latency — select a host</span>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">Hosts Down</div>
-          <div class="stat-value down" id="hosts-down">--</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Avg Latency</div>
-          <div class="stat-value" id="avg-latency">--</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Total Hosts</div>
-          <div class="stat-value" id="total-hosts">--</div>
-        </div>
-      </section>
-
-      <section class="content-grid">
-
-        <div class="panel hosts-panel">
-          <div class="panel-header">
-            <span>Live Hosts</span>
-            <span class="pulse-dot"></span>
-          </div>
-          <table class="host-table">
-            <thead>
-              <tr>
-                <th>IP Address</th>
-                <th>Hostname</th>
-                <th>Status</th>
-                <th>Latency</th>
-                <th>Uptime (24h)</th>
-                <th>Open Ports</th>
-              </tr>
-            </thead>
-            <tbody id="host-table-body">
-              <tr><td colspan="6" class="empty-state">Run a scan to discover hosts</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div class="panel chart-panel">
-          <div class="panel-header">
-            <span id="chart-title">Latency — select a host</span>
-          </div>
-          <div class="chart-wrap">
-            <canvas id="latency-chart"></canvas>
-          </div>
-        </div>
-
-      </section>
-
-    </div><!-- /view-dashboard -->
-
-    <!-- ── Hosts view ── -->
-    <div id="view-hosts" class="view hidden">
-
-      <header class="topbar">
-        <h1>Hosts</h1>
-        <button class="btn-primary" onclick="openAddHostModal()">+ Add Host</button>
-      </header>
-
-      <div class="filter-bar">
-        <input type="text" id="host-search" placeholder="Search IP or label..." oninput="applyHostFilters()" />
-        <select id="group-filter" onchange="applyHostFilters()">
-          <option value="">All Groups</option>
-        </select>
-        <div class="status-filter-group">
-          <button class="filter-btn active" data-status="" onclick="setStatusFilter(this, '')">All</button>
-          <button class="filter-btn" data-status="up" onclick="setStatusFilter(this, 'up')">Up</button>
-          <button class="filter-btn" data-status="down" onclick="setStatusFilter(this, 'down')">Down</button>
+        <div class="chart-wrap">
+          <canvas id="latency-chart"></canvas>
         </div>
       </div>
 
-      <section class="content-grid">
-
-        <div class="panel hosts-panel">
-          <div class="panel-header">
-            <span>Managed Hosts</span>
-            <span class="pulse-dot"></span>
-          </div>
-          <table class="host-table" id="managed-hosts-table">
-            <thead>
-              <tr>
-                <th>IP Address</th>
-                <th>Label</th>
-                <th>Hostname</th>
-                <th>Group</th>
-                <th>Status</th>
-                <th>Uptime (24h)</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="managed-host-table-body">
-              <tr><td colspan="7" class="empty-state">No hosts yet — run a scan or add one manually</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div class="panel detail-panel" id="host-detail-panel">
-          <div class="panel-header">
-            <span id="detail-host-title">— select a host —</span>
-          </div>
-          <div id="host-detail-content" class="detail-placeholder">
-            Click a host to view details
-          </div>
-        </div>
-
-      </section>
-
-    </div><!-- /view-hosts -->
-
-    <!-- ── Scan view (redirect to dashboard scan bar) ── -->
-    <div id="view-scan" class="view hidden"></div>
+    </section>
 
   </main>
 
-  <!-- ── Add Host modal ── -->
-  <div id="add-host-modal" class="modal-overlay hidden" onclick="closeAddHostModalIfOutside(event)">
-    <div class="modal">
-      <div class="modal-header">
-        <span>Add Host</span>
-        <button class="modal-close" onclick="closeAddHostModal()">✕</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-field">
-          <label>IP Address <span class="required">*</span></label>
-          <input type="text" id="new-host-ip" placeholder="192.168.1.1" />
-        </div>
-        <div class="form-field">
-          <label>Label</label>
-          <input type="text" id="new-host-label" placeholder="e.g. Router, NAS, Dad's PC" />
-        </div>
-        <div class="form-field">
-          <label>Group</label>
-          <input type="text" id="new-host-group" placeholder="e.g. Servers, IoT, Devices" list="group-datalist" />
-          <datalist id="group-datalist"></datalist>
-        </div>
-        <div id="add-host-error" class="form-error hidden"></div>
-        <button class="btn-primary btn-full" id="add-host-submit-btn" onclick="submitAddHost()">Add Host</button>
-      </div>
-    </div>
-  </div>
-
   <script src="/static/js/dashboard.js"></script>
-  <script src="/static/js/hosts.js"></script>
-  <script>
-    function switchView(view) {
-      if (view === 'scan') {
-        // Redirect to dashboard and focus the scan input
-        switchView('dashboard');
-        setTimeout(() => document.getElementById('subnet-input').focus(), 50);
-        return;
-      }
-
-      document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-      document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-
-      document.getElementById('view-' + view).classList.remove('hidden');
-      document.querySelector('[data-view="' + view + '"]').classList.add('active');
-
-      if (view === 'hosts') {
-        initHostsView();
-      } else {
-        teardownHostsView();
-      }
-    }
-  </script>
 </body>
 </html>
