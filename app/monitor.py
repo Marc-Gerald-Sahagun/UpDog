@@ -26,8 +26,16 @@ def get_host_status() -> List[dict]:
 
 
 def set_monitored_hosts(hosts: List[str]):
-    global _monitored_hosts
-    _monitored_hosts = hosts
+    """Merge hosts into the monitored list (does not replace)."""
+    for ip in hosts:
+        add_host(ip)
+
+
+def load_hosts_from_db():
+    """Restore monitored hosts from the database on startup."""
+    from app.database import get_all_hosts
+    for h in get_all_hosts():
+        add_host(h["ip"])
 
 
 async def check_host(ip: str):
